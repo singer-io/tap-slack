@@ -40,7 +40,7 @@ def main():
 
     if args.discover:
         discover(webclient=webclient)
-    else:
+    elif args.catalog:
         sync(webclient=webclient, config=args.config, catalog=args.catalog, state=args.state)
 
 if __name__ == '__main__':
