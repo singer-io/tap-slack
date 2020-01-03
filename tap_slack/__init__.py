@@ -18,8 +18,9 @@ def discover(webclient):
 def sync(webclient, config, catalog, state):
 
     LOGGER.info('Starting Sync..')
-    for catalog_stream in catalog.get_selected_streams(state):
-        stream = AVAILABLE_STREAMS[catalog_stream](webclient=webclient, config=config, catalog_stream=catalog_stream, state=state)
+    for catalog_entry in catalog.get_selected_streams(state):
+        stream = AVAILABLE_STREAMS[catalog_entry.stream](webclient=webclient, config=config, catalog_stream=catalog_entry.stream, state=state)
+        LOGGER.info('Syncing Stream %s', catalog_entry.stream)
         stream.write_schema()
         stream.sync()
         stream.write_state()
