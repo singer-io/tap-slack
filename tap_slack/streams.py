@@ -143,9 +143,12 @@ class UsersStream(SlackStream):
         self.state = singer.write_bookmark(state=self.state, tap_stream_id=self.name, key=self.replication_key, val=new_bookmark)
 
 
-AVAILABLE_STREAMS = [
-    ConversationsStream,
-    UsersStream,
-    ConversationMembersStream,
-    ConversationHistoryStream
-]
+
+AVAILABLE_STREAMS = {
+    "conversations": ConversationsStream,
+    "users": UsersStream,
+    "conversation_members": ConversationMembersStream,
+    "conversation_history": ConversationHistoryStream
+}
+
+
