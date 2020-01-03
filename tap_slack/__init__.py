@@ -20,9 +20,9 @@ def sync(webclient, config, catalog, state):
     LOGGER.info('Starting Sync..')
     for catalog_entry in catalog.get_selected_streams(state):
         stream = AVAILABLE_STREAMS[catalog_entry.stream](webclient=webclient, config=config, catalog_stream=catalog_entry.stream, state=state)
-        LOGGER.info('Syncing Stream %s', catalog_entry.stream)
+        LOGGER.info('Syncing stream: %s', catalog_entry.stream)
         stream.write_schema()
-        stream.sync()
+        stream.sync(catalog_entry.metadata)
         stream.write_state()
 
     LOGGER.info('Finished Sync..')

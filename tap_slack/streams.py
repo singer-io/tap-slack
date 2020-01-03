@@ -38,7 +38,7 @@ class ConversationsStream(SlackStream):
     forced_replication_method = 'FULL_TABLE'
     valid_replication_keys = []
 
-    def sync(self):
+    def sync(self, metadata):
 
         schema = self.load_schema()
 
@@ -48,7 +48,7 @@ class ConversationsStream(SlackStream):
                     channels = page.get('channels')
                     for channel in channels:
                         with singer.Transformer(integer_datetime_fmt="unix-seconds-integer-datetime-parsing") as transformer:
-                            transformed_record = transformer.transform(data=channel, schema=schema)
+                            transformed_record = transformer.transform(data=channel, schema=schema, metadata=metadata)
                             singer.write_record(stream_name=self.name, time_extracted=singer.utils.now(), record=transformed_record)
                             counter.increment()
 
@@ -60,7 +60,7 @@ class ConversationMembersStream(SlackStream):
     forced_replication_method = 'FULL_TABLE'
     valid_replication_keys = []
 
-    def sync(self):
+    def sync(self, metadata):
 
         schema = self.load_schema()
 
@@ -77,7 +77,7 @@ class ConversationMembersStream(SlackStream):
                                 data['channel_id'] = channel_id
                                 data['user_id'] = member
                                 with singer.Transformer() as transformer:
-                                    transformed_record = transformer.transform(data=data, schema=schema)
+                                    transformed_record = transformer.transform(data=data, schema=schema, metadata=metadata)
                                     singer.write_record(stream_name=self.name, time_extracted=singer.utils.now(), record=transformed_record)
                                     counter.increment()
 
@@ -89,7 +89,7 @@ class ConversationHistoryStream(SlackStream):
     forced_replication_method = 'FULL_TABLE'
     valid_replication_keys = []
 
-    def sync(self):
+    def sync(self, metadata):
 
         schema = self.load_schema()
 
@@ -106,7 +106,7 @@ class ConversationHistoryStream(SlackStream):
                                 data['channel_id'] = channel_id
                                 data = {**data, **message}
                                 with singer.Transformer(integer_datetime_fmt="unix-seconds-integer-datetime-parsing") as transformer:
-                                    transformed_record = transformer.transform(data=data, schema=schema)
+                                    transformed_record = transformer.transform(data=data, schema=schema, metadata=metadata)
                                     singer.write_record(stream_name=self.name, time_extracted=singer.utils.now(), record=transformed_record)
                                     counter.increment()
                             #TODO: handle rate limiting better than this.
@@ -120,7 +120,7 @@ class UsersStream(SlackStream):
     replication_key = 'updated'
     valid_replication_keys = ['updated_at']
 
-    def sync(self):
+    def sync(self, metadata):
 
         schema = self.load_schema()
         bookmark = singer.get_bookmark(state=self.state, tap_stream_id=self.name, key=self.replication_key)
@@ -134,7 +134,7 @@ class UsersStream(SlackStream):
                     users = page.get('members')
                     for user in users:
                         with singer.Transformer(integer_datetime_fmt="unix-seconds-integer-datetime-parsing") as transformer:
-                            transformed_record = transformer.transform(data=user, schema=schema)
+                            transformed_record = transformer.transform(data=user, schema=schema, metadata=metadata)
                             new_bookmark = max(new_bookmark, transformed_record.get('updated'))
                             if (self.replication_method == 'INCREMENTAL' and transformed_record.get('updated') > bookmark) or self.replication_method == 'FULL_TABLE':
                                 singer.write_record(stream_name=self.name, time_extracted=singer.utils.now(), record=transformed_record)
