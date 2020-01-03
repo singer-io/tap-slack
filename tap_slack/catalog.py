@@ -15,6 +15,7 @@ def generate_catalog(streams):
                                                               valid_replication_keys=stream.valid_replication_keys,
                                                               replication_method=stream.replication_method)
         }
+        # TODO: valid_replication_keys do not get marked with automatic metadata which could break bookmarking
         catalog['streams'].append(catalog_entry)
 
     return catalog
