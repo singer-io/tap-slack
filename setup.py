@@ -12,6 +12,13 @@ setup(name='tap-slack',
           'singer-python==5.9.0',
           'slackclient==2.0.1'
       ],
+      extras_require={
+          'dev': [
+              'pylint',
+              'ipdb',
+              'nose',
+          ]
+      },
       python_requires='>=3.6',
       entry_points='''
           [console_scripts]
