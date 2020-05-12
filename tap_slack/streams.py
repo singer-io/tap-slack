@@ -31,6 +31,17 @@ class SlackStream():
     def write_state(self):
         return singer.write_state(self.state)
 
+    def channels(self):
+        types = "public_channel"
+        enable_private_channels = self.config.get("private_channels", True)
+        if enable_private_channels:
+            types = "public_channel,private_channel"
+
+        for page in self.webclient.conversations_list(limit=100, exclude_archived='false', types=types):
+            channels = page.get('channels')
+            for channel in channels:
+                yield channel
+
 
 class ConversationsStream(SlackStream):
     name = 'conversations'
@@ -45,13 +56,11 @@ class ConversationsStream(SlackStream):
 
         with singer.metrics.job_timer(job_type='list_conversations') as timer:
             with singer.metrics.record_counter(endpoint=self.name) as counter:
-                for page in self.webclient.conversations_list(limit=100, exclude_archived='false', types="public_channel,private_channel"):
-                    channels = page.get('channels')
-                    for channel in channels:
-                        with singer.Transformer(integer_datetime_fmt="unix-seconds-integer-datetime-parsing") as transformer:
-                            transformed_record = transformer.transform(data=channel, schema=schema, metadata=metadata.to_map(mdata))
-                            singer.write_record(stream_name=self.name, time_extracted=singer.utils.now(), record=transformed_record)
-                            counter.increment()
+                for channel in self.channels():
+                    with singer.Transformer(integer_datetime_fmt="unix-seconds-integer-datetime-parsing") as transformer:
+                        transformed_record = transformer.transform(data=channel, schema=schema, metadata=metadata.to_map(mdata))
+                        singer.write_record(stream_name=self.name, time_extracted=singer.utils.now(), record=transformed_record)
+                        counter.increment()
 
 
 class ConversationMembersStream(SlackStream):
@@ -67,20 +76,18 @@ class ConversationMembersStream(SlackStream):
 
         with singer.metrics.job_timer(job_type='list_conversation_members') as timer:
             with singer.metrics.record_counter(endpoint=self.name) as counter:
-                for page in self.webclient.conversations_list(limit=100, exclude_archived='false', types="public_channel,private_channel"):
-                    channels = page.get('channels')
-                    for channel in channels:
-                        channel_id = channel.get('id')
-                        for page in self.webclient.conversations_members(channel=channel_id):
-                            members = page.get('members')
-                            for member in members:
-                                data = {}
-                                data['channel_id'] = channel_id
-                                data['user_id'] = member
-                                with singer.Transformer() as transformer:
-                                    transformed_record = transformer.transform(data=data, schema=schema, metadata=metadata.to_map(mdata))
-                                    singer.write_record(stream_name=self.name, time_extracted=singer.utils.now(), record=transformed_record)
-                                    counter.increment()
+                for channel in self.channels():
+                    channel_id = channel.get('id')
+                    for page in self.webclient.conversations_members(channel=channel_id):
+                        members = page.get('members')
+                        for member in members:
+                            data = {}
+                            data['channel_id'] = channel_id
+                            data['user_id'] = member
+                            with singer.Transformer() as transformer:
+                                transformed_record = transformer.transform(data=data, schema=schema, metadata=metadata.to_map(mdata))
+                                singer.write_record(stream_name=self.name, time_extracted=singer.utils.now(), record=transformed_record)
+                                counter.increment()
 
 
 class ConversationHistoryStream(SlackStream):
@@ -96,22 +103,20 @@ class ConversationHistoryStream(SlackStream):
 
         with singer.metrics.job_timer(job_type='list_conversation_history') as timer:
             with singer.metrics.record_counter(endpoint=self.name) as counter:
-                for page in self.webclient.conversations_list(limit=100, exclude_archived='false', types="public_channel,private_channel"):
-                    channels = page.get('channels')
-                    for channel in channels:
-                        channel_id = channel.get('id')
-                        for page in self.webclient.conversations_history(channel=channel_id):
-                            messages = page.get('messages')
-                            for message in messages:
-                                data = {}
-                                data['channel_id'] = channel_id
-                                data = {**data, **message}
-                                with singer.Transformer(integer_datetime_fmt="unix-seconds-integer-datetime-parsing") as transformer:
-                                    transformed_record = transformer.transform(data=data, schema=schema, metadata=metadata.to_map(mdata))
-                                    singer.write_record(stream_name=self.name, time_extracted=singer.utils.now(), record=transformed_record)
-                                    counter.increment()
-                            #TODO: handle rate limiting better than this.
-                            time.sleep(1)
+                for channel in self.channels():
+                    channel_id = channel.get('id')
+                    for page in self.webclient.conversations_history(channel=channel_id):
+                        messages = page.get('messages')
+                        for message in messages:
+                            data = {}
+                            data['channel_id'] = channel_id
+                            data = {**data, **message}
+                            with singer.Transformer(integer_datetime_fmt="unix-seconds-integer-datetime-parsing") as transformer:
+                                transformed_record = transformer.transform(data=data, schema=schema, metadata=metadata.to_map(mdata))
+                                singer.write_record(stream_name=self.name, time_extracted=singer.utils.now(), record=transformed_record)
+                                counter.increment()
+                        #TODO: handle rate limiting better than this.
+                        time.sleep(1)
 
 
 class UsersStream(SlackStream):

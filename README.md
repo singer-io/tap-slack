@@ -22,6 +22,25 @@ The tap requires a [Slack API token](https://github.com/slackapi/python-slackcli
  - `channels:history`
  - `users:read`
 
+Create a config file containing the API token and a start date, e.g.:
+
+```json
+{
+  "token":"xxxx",
+  "start_date":"2020-05-01T00:00:00"
+}
+```
+
+Optionally, you can also specify whether you want to sync private channels or not by adding the following to the config:
+
+```json
+    "private_channels":false
+```
+
+By default, private channels will be synced, and therefore you will also need these additional scopes:
+- `groups:read`
+- `groups:history`
+
 ## Usage
 
 It is recommended to follow Singer [best practices](https://github.com/singer-io/getting-started/blob/master/docs/RUNNING_AND_DEVELOPING.md#running-and-developing-singer-taps-and-targets) when running taps either [on their own](https://github.com/singer-io/getting-started/blob/master/docs/RUNNING_AND_DEVELOPING.md#running-a-singer-tap) or [with a Singer target](https://github.com/singer-io/getting-started/blob/master/docs/RUNNING_AND_DEVELOPING.md#running-a-singer-tap-with-a-singer-target).
