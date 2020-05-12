@@ -32,7 +32,12 @@ class SlackStream():
         return singer.write_state(self.state)
 
     def channels(self):
-        for page in self.webclient.conversations_list(limit=100, exclude_archived='false', types="public_channel,private_channel"):
+        types = "public_channel"
+        enable_private_channels = self.config.get("private_channels", True)
+        if enable_private_channels:
+            types = "public_channel,private_channel"
+
+        for page in self.webclient.conversations_list(limit=100, exclude_archived='false', types=types):
             channels = page.get('channels')
             for channel in channels:
                 yield channel
