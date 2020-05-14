@@ -31,6 +31,8 @@ Create a config file containing the API token and a start date, e.g.:
 }
 ```
 
+### Private channels
+
 Optionally, you can also specify whether you want to sync private channels or not by adding the following to the config:
 
 ```json
@@ -40,6 +42,19 @@ Optionally, you can also specify whether you want to sync private channels or no
 By default, private channels will be synced, and therefore you will also need these additional scopes:
 - `groups:read`
 - `groups:history`
+
+### Specify channels to sync
+
+By default, the tap will sync all channels. However, you can limit the tap to sync only the channels you specify by adding their IDs to the config file, e.g.:
+
+```json
+"channels":[
+    "abc123",
+    "def345"
+  ]
+```
+
+Note this needs to be channel ID, not the name, as [recommended by the Slack API](https://api.slack.com/types/conversation#other_attributes). To get the ID for a channel, either use the Slack API or [find it in the URL](https://www.wikihow.com/Find-a-Channel-ID-on-Slack-on-PC-or-Mac).
 
 ## Usage
 

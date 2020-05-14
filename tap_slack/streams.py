@@ -31,7 +31,7 @@ class SlackStream():
     def write_state(self):
         return singer.write_state(self.state)
 
-    def channels(self):
+    def _all_channels(self):
         types = "public_channel"
         enable_private_channels = self.config.get("private_channels", True)
         if enable_private_channels:
@@ -42,6 +42,16 @@ class SlackStream():
             for channel in channels:
                 yield channel
 
+    def _specified_channels(self):
+        for channel_id in self.config.get("channels"):
+            page = self.webclient.conversations_info(channel=channel_id, include_num_members=0)
+            yield page.get('channel')
+
+    def channels(self):
+        if "channels" in self.config:
+            yield from self._specified_channels()
+        else:
+            yield from self._all_channels()
 
 class ConversationsStream(SlackStream):
     name = 'conversations'
