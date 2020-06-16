@@ -108,5 +108,31 @@ The `Users` stream _does_ store information about when a User record was last up
  - Primary Key Column: `id`
  - Replication Strategy: `INCREMENTAL`
  - API Documentation: [Link](https://api.slack.com/methods/users.list)
+ 
+ 
+ ```bash
+Checking stdin for valid Singer-formatted data
+The output is valid.
+It contained 3657 messages for 9 streams.
+
+    581 schema messages
+   2393 record messages
+    683 state messages
+
+Details by stream:
++-----------------+---------+---------+
+| stream          | records | schemas |
++-----------------+---------+---------+
+| threads         | 633     | 573     |
+| user_groups     | 1       | 1       |
+| channel_members | 1049    | 1       |
+| users           | 22      | 1       |
+| channels        | 0       | 1       |
+| remote_files    | 3       | 1       |
+| messages        | 573     | 1       |
+| teams           | 1       | 1       |
+| files           | 111     | 1       |
++-----------------+---------+---------+
+```
 
 Copyright &copy; 2019 Stitch

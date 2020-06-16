@@ -118,7 +118,8 @@
             "type": ["null", "string"]
           },
           "ts": {
-            "type": ["null", "string"]
+            "type": ["null", "string"],
+            "format": "date-time"
           }
         }
       }
