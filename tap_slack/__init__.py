@@ -35,8 +35,8 @@ def sync(webclient, config, catalog, state):
     for catalog_entry in catalog.get_selected_streams(state):
         if "threads" not in catalog_entry.stream:
             stream = AVAILABLE_STREAMS[catalog_entry.stream](webclient=webclient, config=config,
-                                                         catalog=catalog,
-                                                         state=state)
+                                                             catalog=catalog,
+                                                             state=state)
             LOGGER.info('Syncing stream: %s', catalog_entry.stream)
             stream.write_schema()
             stream.sync(catalog_entry.metadata)
