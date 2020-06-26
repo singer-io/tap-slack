@@ -1,12 +1,10 @@
 import os
-import time
 from datetime import timedelta, datetime
 
 import pytz
 import singer
 from singer import metadata, utils
 from singer.utils import strptime_to_utc
-from slack.errors import SlackApiError
 
 from tap_slack.transform import transform_json
 
@@ -17,11 +15,12 @@ utc = pytz.UTC
 
 class SlackStream:
 
-    def __init__(self, webclient, config=None, catalog=None, state=None):
-        self.webclient = webclient
+    def __init__(self, client, config=None, catalog=None, state=None, write_to_singer=True):
+        self.client = client
         self.config = config
         self.catalog = catalog
         self.state = state
+        self.write_to_singer = write_to_singer
         if config:
             self.date_window_size = int(config.get('date_window_size', '7'))
         else:
@@ -71,11 +70,11 @@ class SlackStream:
         now_dttm = utils.now()
         delta_days = (now_dttm - start_dttm).days
         if delta_days < attribution_window:
-            start = now_dttm - timedelta(days=attribution_window)
+            start_ddtm = now_dttm - timedelta(days=attribution_window)
         else:
-            start = start_dttm
+            start_ddtm = start_dttm
 
-        return start, now_dttm
+        return start_ddtm, now_dttm
 
     def _all_channels(self):
         types = "public_channel"
@@ -84,23 +83,9 @@ class SlackStream:
         if enable_private_channels == "true":
             types = "public_channel,private_channel"
 
-        try:
-            conversations_list = self.webclient.conversations_list(
-                limit=100,
-                exclude_archived=exclude_archived,
-                types=types)
-        except SlackApiError as err:
-            if err.response.data["error"] == "ratelimited":
-                # If we've hit rate limits there will be a header indicating how
-                # long to wait to make another request
-                delay = int(err.response.headers['Retry-After'])
-                time.sleep(delay)
-                conversations_list = self.webclient.conversations_list(
-                    limit=100,
-                    exclude_archived=exclude_archived,
-                    types=types)
-            else:
-                raise err
+        conversations_list = self.client.get_all_channels(types=types,
+                                                          exclude_archived=exclude_archived)
+
         for page in conversations_list:
             channels = page.get('channels')
             for channel in channels:
@@ -108,19 +93,7 @@ class SlackStream:
 
     def _specified_channels(self):
         for channel_id in self.config.get("channels"):
-            try:
-                page = self.webclient.conversations_info(channel=channel_id, include_num_members=0)
-            except SlackApiError as err:
-                if err.response.data["error"] == "ratelimited":
-                    # If we've hit rate limits there will be a header indicating how
-                    # long to wait to make another request
-                    delay = int(err.response.headers['Retry-After'])
-                    time.sleep(delay)
-                    page = self.webclient.conversations_info(channel=channel_id,
-                                                             include_num_members=0)
-                else:
-                    raise err
-            yield page.get('channel')
+            yield self.client.get_channel(include_num_members=0, channel=channel_id)
 
     def channels(self):
         if "channels" in self.config:
@@ -153,10 +126,11 @@ class ConversationsStream(SlackStream):
                             as transformer:
                         transformed_record = transformer.transform(data=channel, schema=schema,
                                                                    metadata=metadata.to_map(mdata))
-                        singer.write_record(stream_name=self.name,
-                                            time_extracted=singer.utils.now(),
-                                            record=transformed_record)
-                        counter.increment()
+                        if self.write_to_singer:
+                            singer.write_record(stream_name=self.name,
+                                                time_extracted=singer.utils.now(),
+                                                record=transformed_record)
+                            counter.increment()
 
 
 # ConversationsMembersStream = Slack Channel Members (Users)
@@ -178,24 +152,7 @@ class ConversationMembersStream(SlackStream):
                 for channel in self.channels():
                     channel_id = channel.get('id')
 
-                    try:
-                        members_cursor = self.webclient.conversations_members(channel=channel_id)
-                    except SlackApiError as err:
-                        # Ignore fetch_members_error for archived channels
-                        error_response = err.response.data["error"]
-                        if error_response == 'fetch_members_failed':
-                            LOGGER.warning('Failed to fetch members for channel: {}'
-                                           .format(channel_id))
-                            members_cursor = []
-                        elif error_response == 'ratelimited':
-                            # If we've hit rate limits there will be a header indicating how
-                            # long to wait to make another request
-                            delay = int(err.response.headers['Retry-After'])
-                            time.sleep(delay)
-                            members_cursor = self.webclient.conversations_members(
-                                channel=channel_id)
-                        else:
-                            raise err
+                    members_cursor = self.client.get_channel_members(channel_id)
 
                     for page in members_cursor:
                         members = page.get('members')
@@ -205,10 +162,11 @@ class ConversationMembersStream(SlackStream):
                                 transformed_record = transformer.transform(data=data, schema=schema,
                                                                            metadata=metadata.to_map(
                                                                                mdata))
-                                singer.write_record(stream_name=self.name,
-                                                    time_extracted=singer.utils.now(),
-                                                    record=transformed_record)
-                                counter.increment()
+                                if self.write_to_singer:
+                                    singer.write_record(stream_name=self.name,
+                                                        time_extracted=singer.utils.now(),
+                                                        record=transformed_record)
+                                    counter.increment()
 
 
 # ConversationsHistoryStream = Slack Messages (not including reply threads)
@@ -233,8 +191,6 @@ class ConversationHistoryStream(SlackStream):
         if self.name not in self.state['bookmarks']:
             self.state['bookmarks'][self.name] = {}
         self.state['bookmarks'][self.name][channel_id] = value
-        LOGGER.info('Stream: {}, channel id: {} - Write state, bookmark value: {}'
-                    .format(self.name, channel_id, value))
         self.write_state()
 
     # pylint: disable=arguments-differ
@@ -262,7 +218,7 @@ class ConversationHistoryStream(SlackStream):
         for catalog_entry in self.catalog.get_selected_streams(self.state):
             if catalog_entry.stream == 'threads':
                 threads_mdata = catalog_entry.metadata
-                threads_stream = ThreadsStream(webclient=self.webclient, config=self.config,
+                threads_stream = ThreadsStream(client=self.client, config=self.config,
                                                catalog=self.catalog, state=self.state)
 
         # pylint: disable=unused-variable
@@ -281,50 +237,12 @@ class ConversationHistoryStream(SlackStream):
                     max_bookmark = start
 
                     while date_window_start < date_window_end:
-                        try:
-                            messages = self.webclient \
-                                .conversations_history(channel=channel_id,
-                                                       oldest=int(date_window_start.timestamp()),
-                                                       latest=int(date_window_end.timestamp()))
-                        except SlackApiError as err:
-                            if err.response.data["error"] == "ratelimited":
-                                # If we've hit rate limits there will be a header indicating how
-                                # long to wait to make another request
-                                delay = int(err.response.headers['Retry-After'])
-                                time.sleep(delay)
-                                try:
-                                    messages = self.webclient \
-                                        .conversations_history(channel=channel_id,
-                                                               oldest=int(
-                                                                   date_window_start.timestamp()),
-                                                               latest=int(
-                                                                   date_window_end.timestamp()))
-                                except SlackApiError as err_two:
-                                    if err_two.response.data["error"] == "not_in_channel":
-                                        # The tap config might dictate that archived channels should
-                                        # be processed, but if the slackbot was not made a member of
-                                        # those channels prior to archiving attempting to get the
-                                        # messages will throw an error
-                                        LOGGER.warning(
-                                            'Attempted to get messages for channel: {} that '
-                                            'slackbot is not in'.format(
-                                                channel_id
-                                            ))
-                                        messages = None
-                                        date_window_start = date_window_end
-                            elif err.response.data["error"] == "not_in_channel":
-                                # The tap config might dictate that archived channels should be
-                                # processed, but if the slackbot was not made a member of those
-                                # channels prior to archiving attempting to get the messages will
-                                # throw an error
-                                LOGGER.warning(
-                                    'Attempted to get messages for channel: {} that slackbot is '
-                                    'not in'.format(
-                                        channel_id))
-                                messages = None
-                                date_window_start = date_window_end
-                            else:
-                                raise err
+
+                        messages = self.client \
+                            .get_messages(channel=channel_id,
+                                          oldest=int(date_window_start.timestamp()),
+                                          latest=int(date_window_end.timestamp()))
+
                         if messages:
                             for page in messages:
                                 messages = page.get('messages')
@@ -336,6 +254,9 @@ class ConversationHistoryStream(SlackStream):
                                     data = {'channel_id': channel_id}
                                     data = {**data, **message}
 
+                                    # If threads are being synced then the message data for the
+                                    # message the threaded replies are in response to will be
+                                    # synced to the messages table as well as the threads table
                                     if threads_stream:
                                         # If threads is selected we need to sync all the
                                         # threaded replies to this message
@@ -358,10 +279,11 @@ class ConversationHistoryStream(SlackStream):
                                                 0]
                                         record_timestamp_int = int(record_timestamp)
                                         if record_timestamp_int >= start.timestamp():
-                                            singer.write_record(stream_name=self.name,
-                                                                time_extracted=singer.utils.now(),
-                                                                record=transformed_record)
-                                            counter.increment()
+                                            if self.write_to_singer:
+                                                singer.write_record(stream_name=self.name,
+                                                                    time_extracted=singer.utils.now(),
+                                                                    record=transformed_record)
+                                                counter.increment()
 
                                             if datetime.utcfromtimestamp(
                                                     record_timestamp_int).replace(
@@ -386,6 +308,8 @@ class ConversationHistoryStream(SlackStream):
                                 days=self.date_window_size)
                             if date_window_end > end:
                                 date_window_end = end
+                        else:
+                            date_window_start = date_window_end
 
 
 # UsersStream = Slack Users
@@ -409,17 +333,7 @@ class UsersStream(SlackStream):
         # pylint: disable=unused-variable
         with singer.metrics.job_timer(job_type='list_users') as timer:
             with singer.metrics.record_counter(endpoint=self.name) as counter:
-                try:
-                    users_list = self.webclient.users_list(limit=100)
-                except SlackApiError as err:
-                    # If we've hit rate limits there will be a header indicating how
-                    # long to wait to make another request
-                    if err.response.data["error"] == "ratelimited":
-                        delay = int(err.response.headers['Retry-After'])
-                        time.sleep(delay)
-                        users_list = self.webclient.users_list(limit=100)
-                    else:
-                        raise err
+                users_list = self.client.get_users(limit=100)
 
                 for page in users_list:
                     users = page.get('members')
@@ -433,19 +347,22 @@ class UsersStream(SlackStream):
                                                                        metadata=metadata.to_map(
                                                                            mdata))
                             new_bookmark = max(new_bookmark, transformed_record.get('updated'))
-                            if (self.replication_method == 'INCREMENTAL'
-                                and transformed_record.get('updated') > bookmark) \
-                                    or self.replication_method == 'FULL_TABLE':
-                                singer.write_record(stream_name=self.name,
-                                                    time_extracted=singer.utils.now(),
-                                                    record=transformed_record)
-                                counter.increment()
+                            if transformed_record.get('updated') > bookmark:
+                                if self.write_to_singer:
+                                    singer.write_record(stream_name=self.name,
+                                                        time_extracted=singer.utils.now(),
+                                                        record=transformed_record)
+                                    counter.increment()
 
         self.state = singer.write_bookmark(state=self.state, tap_stream_id=self.name,
                                            key=self.replication_key, val=new_bookmark)
 
 
 # ThreadsStream = Slack Message Threads (Replies to Slack message)
+# The threads stream does a "FULL TABLE" sync using a date window, based on the parent message.
+# This means that a thread is only synced if the message it is started on fits within the overall
+# sync window. Additionally threaded messages retrieved from the API are only included if they are
+# within the overall sync window.
 class ThreadsStream(SlackStream):
     name = 'threads'
     key_properties = ['channel_id', 'ts', 'thread_ts']
@@ -461,24 +378,11 @@ class ThreadsStream(SlackStream):
         # pylint: disable=unused-variable
         with singer.metrics.job_timer(job_type='list_threads') as timer:
             with singer.metrics.record_counter(endpoint=self.name) as counter:
-                try:
-                    replies = self.webclient.conversations_replies(channel=channel_id, ts=ts,
-                                                                   inclusive="true",
-                                                                   oldest=int(start.timestamp()),
-                                                                   latest=int(end.timestamp()))
-                except SlackApiError as err:
-                    if err.response.data["error"] == "ratelimited":
-                        # If we've hit rate limits there will be a header indicating how
-                        # long to wait to make another request
-                        delay = int(err.response.headers['Retry-After'])
-                        time.sleep(delay)
-                        replies = self.webclient.conversations_replies(channel=channel_id, ts=ts,
-                                                                       inclusive="true",
-                                                                       oldest=int(
-                                                                           start.timestamp()),
-                                                                       latest=int(end.timestamp()))
-                    else:
-                        raise err
+                replies = self.client.get_thread(channel=channel_id,
+                                                 ts=ts,
+                                                 inclusive="true",
+                                                 oldest=int(start.timestamp()),
+                                                 latest=int(end.timestamp()))
 
                 for page in replies:
                     transformed_threads = transform_json(stream=self.name,
@@ -492,10 +396,11 @@ class ThreadsStream(SlackStream):
                             transformed_record = transformer.transform(data=message, schema=schema,
                                                                        metadata=metadata.to_map(
                                                                            mdata))
-                            singer.write_record(stream_name=self.name,
-                                                time_extracted=singer.utils.now(),
-                                                record=transformed_record)
-                            counter.increment()
+                            if self.write_to_singer:
+                                singer.write_record(stream_name=self.name,
+                                                    time_extracted=singer.utils.now(),
+                                                    record=transformed_record)
+                                counter.increment()
 
 
 # UserGroupsStream = Slack User Groups
@@ -511,21 +416,9 @@ class UserGroupsStream(SlackStream):
         # pylint: disable=unused-variable
         with singer.metrics.job_timer(job_type='list_user_groups') as timer:
             with singer.metrics.record_counter(endpoint=self.name) as counter:
-                try:
-                    usergroups_list = self.webclient.usergroups_list(include_count="true",
-                                                                     include_disabled="true",
-                                                                     include_user="true")
-                except SlackApiError as err:
-                    if err.response.data["error"] == "ratelimited":
-                        # If we've hit rate limits there will be a header indicating how
-                        # long to wait to make another request
-                        delay = int(err.response.headers['Retry-After'])
-                        time.sleep(delay)
-                        usergroups_list = self.webclient.usergroups_list(include_count="true",
-                                                                         include_disabled="true",
-                                                                         include_user="true")
-                    else:
-                        raise err
+                usergroups_list = self.client.get_user_groups(include_count="true",
+                                                              include_disabled="true",
+                                                              include_user="true")
 
                 for page in usergroups_list:
                     for usergroup in page.get('usergroups'):
@@ -536,10 +429,11 @@ class UserGroupsStream(SlackStream):
                                                                        schema=schema,
                                                                        metadata=metadata.to_map(
                                                                            mdata))
-                            singer.write_record(stream_name=self.name,
-                                                time_extracted=singer.utils.now(),
-                                                record=transformed_record)
-                            counter.increment()
+                            if self.write_to_singer:
+                                singer.write_record(stream_name=self.name,
+                                                    time_extracted=singer.utils.now(),
+                                                    record=transformed_record)
+                                counter.increment()
 
 
 # TeamsStream = Slack Teams
@@ -557,15 +451,8 @@ class TeamsStream(SlackStream):
         # pylint: disable=unused-variable
         with singer.metrics.job_timer(job_type='team_info') as timer:
             with singer.metrics.record_counter(endpoint=self.name) as counter:
-                try:
-                    team_info = self.webclient.team_info()
-                except SlackApiError as err:
-                    if err.response.data["error"] == "ratelimited":
-                        delay = int(err.response.headers['Retry-After'])
-                        time.sleep(delay)
-                        team_info = self.webclient.team_info()
-                    else:
-                        raise err
+
+                team_info = self.client.get_teams()
 
                 for page in team_info:
                     team = page.get('team')
@@ -576,10 +463,11 @@ class TeamsStream(SlackStream):
                                                                    schema=schema,
                                                                    metadata=metadata.to_map(
                                                                        mdata))
-                        singer.write_record(stream_name=self.name,
-                                            time_extracted=singer.utils.now(),
-                                            record=transformed_record)
-                        counter.increment()
+                        if self.write_to_singer:
+                            singer.write_record(stream_name=self.name,
+                                                time_extracted=singer.utils.now(),
+                                                record=transformed_record)
+                            counter.increment()
 
 
 # FilesStream = Files uploaded/shared to Slack and hosted by Slack
@@ -608,28 +496,15 @@ class FilesStream(SlackStream):
                 max_bookmark = start
 
                 while date_window_start < date_window_end:
-                    try:
-                        files_list = self.webclient \
-                            .files_list(from_ts=int(date_window_start.timestamp()),
-                                        to_ts=int(date_window_end.timestamp()))
-                    except SlackApiError as err:
-                        if err.response.data["error"] == "ratelimited":
-                            # If we've hit rate limits there will be a header indicating how
-                            # long to wait to make another request
-                            delay = int(err.response.headers['Retry-After'])
-                            time.sleep(delay)
-                            files_list = self.webclient \
-                                .files_list(from_ts=int(date_window_start.timestamp()),
-                                            to_ts=int(date_window_end.timestamp()))
-                        else:
-                            raise err
+                    files_list = self.client.get_files(
+                        from_ts=int(date_window_start.timestamp()),
+                        to_ts=int(date_window_end.timestamp())
+                    )
 
                     for page in files_list:
                         files = page.get('files')
-                        transformed_files = transform_json(stream=self.name,
-                                                           data=files,
-                                                           date_fields=self.date_fields)
-                        for file in transformed_files:
+
+                        for file in files:
                             with singer.Transformer(
                                     integer_datetime_fmt="unix-seconds-integer-datetime-parsing"
                             ) as transformer:
@@ -643,10 +518,11 @@ class FilesStream(SlackStream):
                                 record_timestamp_int = int(record_timestamp)
 
                                 if record_timestamp_int >= start.timestamp():
-                                    singer.write_record(stream_name=self.name,
-                                                        time_extracted=singer.utils.now(),
-                                                        record=transformed_record)
-                                    counter.increment()
+                                    if self.write_to_singer:
+                                        singer.write_record(stream_name=self.name,
+                                                            time_extracted=singer.utils.now(),
+                                                            record=transformed_record)
+                                        counter.increment()
 
                                     if datetime.utcfromtimestamp(
                                             record_timestamp_int).replace(
@@ -698,21 +574,10 @@ class RemoteFilesStream(SlackStream):
                 max_bookmark = start
 
                 while date_window_start < date_window_end:
-                    try:
-                        remote_files_list = self.webclient \
-                            .files_remote_list(from_ts=int(date_window_start.timestamp()),
-                                               to_ts=int(date_window_end.timestamp()))
-                    except SlackApiError as err:
-                        if err.response.data["error"] == "ratelimited":
-                            # If we've hit rate limits there will be a header indicating how
-                            # long to wait to make another request
-                            delay = int(err.response.headers['Retry-After'])
-                            time.sleep(delay)
-                            remote_files_list = self.webclient \
-                                .files_remote_list(from_ts=int(date_window_start.timestamp()),
-                                                   to_ts=int(date_window_end.timestamp()))
-                        else:
-                            raise err
+                    remote_files_list = self.client.get_remote_files(
+                        from_ts=int(date_window_start.timestamp()),
+                        to_ts=int(date_window_end.timestamp())
+                    )
 
                     for page in remote_files_list:
                         remote_files = page.get('files')
@@ -733,10 +598,11 @@ class RemoteFilesStream(SlackStream):
                                 record_timestamp_int = int(record_timestamp)
 
                                 if record_timestamp_int >= start.timestamp():
-                                    singer.write_record(stream_name=self.name,
-                                                        time_extracted=singer.utils.now(),
-                                                        record=transformed_record)
-                                    counter.increment()
+                                    if self.write_to_singer:
+                                        singer.write_record(stream_name=self.name,
+                                                            time_extracted=singer.utils.now(),
+                                                            record=transformed_record)
+                                        counter.increment()
 
                                     if datetime.utcfromtimestamp(
                                             record_timestamp_int).replace(
