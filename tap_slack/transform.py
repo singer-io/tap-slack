@@ -24,6 +24,12 @@ def transform_json(stream, data, date_fields, channel_id=None):
                 # add channel_id to the message
                 record['channel_id'] = channel_id
 
+            if stream == "channels":
+                # These come back on the client response but aren't actually populated
+                # Or in Slack's documentation at the time of writing, just remove them
+                record.pop("parent_conversation", None)
+                record.pop("channel_id", None)
+
             for date_field in date_fields:
                 timestamp = record.get(date_field, None)
                 if timestamp and isinstance(timestamp, str):

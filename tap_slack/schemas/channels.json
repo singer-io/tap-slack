@@ -49,6 +49,27 @@
     "is_pending_ext_shared": {
       "type": ["null", "boolean"]
     },
+    "shared_team_ids": {
+      "type": ["null", "array"],
+      "items": {
+        "type": ["null", "string"]
+      }
+    },
+    "pending_shared": {
+      "type": ["null", "array"],
+      "items": {
+        "type": ["null", "string"]
+      }
+    },
+    "pending_connected_team_ids": {
+      "type": ["null", "array"],
+      "items": {
+        "type": ["null", "string"]
+      }
+    },
+    "parent_conversation": {
+      "type": ["null", "string"]
+    },
     "is_member": {
       "type": ["null", "boolean"]
     },
@@ -103,26 +124,8 @@
         "type": ["null", "string"]
       }
     },
-    "messages": {
-      "type": ["null", "array"],
-      "items": {
-        "type": ["null", "object"],
-        "properties": {
-          "type": {
-            "type": ["null", "string"]
-          },
-          "user": {
-            "type": ["null", "string"]
-          },
-          "text": {
-            "type": ["null", "string"]
-          },
-          "ts": {
-            "type": ["null", "string"],
-            "format": "date-time"
-          }
-        }
-      }
+    "channel_id": {
+      "type": ["null", "string"]
     }
   }
 }

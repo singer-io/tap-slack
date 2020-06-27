@@ -118,13 +118,13 @@ class ConversationsStream(SlackStream):
         with singer.metrics.job_timer(job_type='list_conversations') as timer:
             with singer.metrics.record_counter(endpoint=self.name) as counter:
                 channels = self.channels()
-                transformed_channels = transform_json(stream=self.name, data=channels,
-                                                      date_fields=self.date_fields)
-                for channel in transformed_channels:
+                for channel in channels:
+                    transformed_channel = transform_json(stream=self.name, data=[channel],
+                                                         date_fields=self.date_fields)
                     with singer.Transformer(
                             integer_datetime_fmt="unix-seconds-integer-datetime-parsing") \
                             as transformer:
-                        transformed_record = transformer.transform(data=channel, schema=schema,
+                        transformed_record = transformer.transform(data=transformed_channel[0], schema=schema,
                                                                    metadata=metadata.to_map(mdata))
                         if self.write_to_singer:
                             singer.write_record(stream_name=self.name,
