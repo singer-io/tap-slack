@@ -80,6 +80,19 @@ You can control whether or not the tap will sync archived channels by including 
 ```
 It's important to note that a bot *CANNOT* join an archived channel, so unless the bot was added to the channel prior to it being archived it will not be able to sync the data from that channel.
 
+### Date Windowing
+
+Due to the potentially high volume of data when syncing certain streams (messages, files, threads)
+this tap implements date windowing based on a configuration parameter.
+
+including 
+```json
+"date_window_size": "5"
+```
+
+Will cause the tap to sync 5 days of data per request, for applicable streams. The default value if 
+one is not defined is to window requests for 7 days at a time.
+
 ## Usage
 
 It is recommended to follow Singer [best practices](https://github.com/singer-io/getting-started/blob/master/docs/RUNNING_AND_DEVELOPING.md#running-and-developing-singer-taps-and-targets) when running taps either [on their own](https://github.com/singer-io/getting-started/blob/master/docs/RUNNING_AND_DEVELOPING.md#running-a-singer-tap) or [with a Singer target](https://github.com/singer-io/getting-started/blob/master/docs/RUNNING_AND_DEVELOPING.md#running-a-singer-tap-with-a-singer-target).
@@ -164,7 +177,7 @@ The `Users` stream _does_ store information about when a User record was last up
  - Replication Strategy: `INCREMENTAL` query filtered using date windows and lookback window
  - API Documentation: [Link](https://api.slack.com/methods/files.remote.list)
  
- ## Testing the Tap
+## Testing the Tap
     
 While developing the Slack tap, the following utilities were run in accordance with Singer.io best practices:
 Pylint to improve [code quality](https://github.com/singer-io/getting-started/blob/master/docs/BEST_PRACTICES.md#code-quality):

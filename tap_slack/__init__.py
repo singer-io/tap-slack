@@ -10,18 +10,29 @@ from tap_slack.catalog import generate_catalog
 LOGGER = singer.get_logger()
 
 
-def auto_join(client):
-    response = client.get_all_channels(types="public_channel", exclude_archived="true")
-    conversations = response.get("channels", [])
+def auto_join(client, config):
 
-    for conversation in conversations:
-        conversation_id = conversation.get("id", None)
-        conversation_name = conversation.get("name", None)
-        join_response = client.join_channel(channel=conversation_id)
-        if not join_response.get("ok", False):
-            error = join_response.get("error", "Unspecified Error")
-            LOGGER.error('Error joining {}, Reason: {}'.format(conversation_name, error))
-            raise Exception('{}: {}'.format(conversation_name, error))
+    if "channels" in config:
+        conversations = config.get("channels")
+
+        for conversation_id in conversations:
+            join_response = client.join_channel(channel=conversation_id)
+            if not join_response.get("ok", False):
+                error = join_response.get("error", "Unspecified Error")
+                LOGGER.error('Error joining {}, Reason: {}'.format(conversation_id, error))
+                raise Exception('{}: {}'.format(conversation_id, error))
+    else:
+        response = client.get_all_channels(types="public_channel", exclude_archived="true")
+        conversations = response.get("channels", [])
+
+        for conversation in conversations:
+            conversation_id = conversation.get("id", None)
+            conversation_name = conversation.get("name", None)
+            join_response = client.join_channel(channel=conversation_id)
+            if not join_response.get("ok", False):
+                error = join_response.get("error", "Unspecified Error")
+                LOGGER.error('Error joining {}, Reason: {}'.format(conversation_name, error))
+                raise Exception('{}: {}'.format(conversation_name, error))
 
 
 def discover(client):
@@ -79,7 +90,7 @@ def main():
         discover(client=client)
     elif args.catalog:
         if args.config.get("join_public_channels", "false") == "true":
-            auto_join(client=client)
+            auto_join(client=client, config=args.config)
         sync(client=client, config=args.config, catalog=args.catalog, state=args.state)
 
 
