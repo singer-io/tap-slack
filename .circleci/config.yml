@@ -8,7 +8,8 @@ jobs:
       - run:
           name: 'Setup virtual env'
           command: |
-            python3 -mvenv /usr/local/share/virtualenvs/tap-slack
+            pyenv global 3.6.9
+            pyenv rehash
             source /usr/local/share/virtualenvs/tap-slack/bin/activate
             pip install -U 'pip<19.2' setuptools
             pip install .[dev]
