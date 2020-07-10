@@ -17,6 +17,7 @@ setup(name='tap-slack',
               'pylint',
               'ipdb',
               'nose',
+              'awscli'
           ]
       },
       python_requires='>=3.6',
