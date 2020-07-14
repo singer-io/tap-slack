@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 
 setup(name='tap-slack',
-      version='0.1.0',
+      version='1.0.0',
       description='Singer.io tap for extracting data from the Slack Web API',
       author='dwallace@envoy.com',
       classifiers=['Programming Language :: Python :: 3 :: Only'],
