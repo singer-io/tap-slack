@@ -20,7 +20,7 @@ def transform_json(stream, data, date_fields, channel_id=None):
                         file_ids.append(file_id)
                 record['file_ids'] = file_ids
 
-            if stream == "messages" or "threads":
+            if stream in ["messages", "threads"]:
                 # add channel_id to the message
                 record['channel_id'] = channel_id
 
