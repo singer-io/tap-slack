@@ -46,7 +46,7 @@ class SlackClient(object):
     def get_channel(self, include_num_members, channel=None):
         page = self.webclient.conversations_info(channel=channel,
                                                  include_num_members=include_num_members)
-        yield page.get('channel')
+        return page.get('channel')
 
     @backoff.on_exception(backoff.constant,
                           (SlackApiError, TimeoutError),
