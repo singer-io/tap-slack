@@ -17,7 +17,7 @@ deactivate
 
 ## Setup
 
-The tap requires a [Slack API token](https://github.com/slackapi/python-slackclient/blob/master/documentation_v2/auth.md#tokens--authentication) to interact with your Slack workspace. You can obtain a token for a single workspace by creating a new [Slack App](https://api.slack.com/apps?new_app=1) in your workspace and assigning it the relevant [scopes](https://api.slack.com/docs/oauth-scopes). As of right now, the minimum required scopes for this App are:
+The tap requires a [Slack API token](https://slack.dev/python-slack-sdk/installation/index.html#access-tokens) to interact with your Slack workspace. You can obtain a token for a single workspace by creating a new [Slack App](https://api.slack.com/apps?new_app=1) in your workspace and assigning it the relevant [scopes](https://api.slack.com/docs/oauth-scopes). As of right now, the minimum required scopes for this App are:
  - `channels:history`
  - `channels:join`
  - `channels:read`
