@@ -390,6 +390,8 @@ class ThreadsStream(SlackStream):
                                                          date_fields=self.date_fields,
                                                          channel_id=channel_id)
                     for message in transformed_threads:
+                        if message['thread_ts']:
+                            message['thread_ts'] = message['thread_ts'].partition('.')[0]
                         with singer.Transformer(
                                 integer_datetime_fmt="unix-seconds-integer-datetime-parsing") \
                                 as transformer:
