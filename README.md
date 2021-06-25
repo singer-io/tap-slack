@@ -31,6 +31,7 @@ The tap requires a [Slack API token](https://github.com/slackapi/python-slackcli
  - `usergroups:read`
  - `users.profile:read`
  - `users:read`
+ - `users:read.email`
 
 Create a config file containing the API token and a start date, e.g.:
 
