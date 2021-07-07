@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.1
+  * Fix a logic error [#10](https://github.com/singer-io/tap-slack/pull/10)
+
 ## 1.1.0
   * Adding user's email address to the users schema [#16](https://github.com/singer-io/tap-slack/pull/16)
 
