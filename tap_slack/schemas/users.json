@@ -47,6 +47,9 @@
     "is_bot": {
       "type": ["null", "boolean"]
     },
+    "is_email_confirmed": {
+      "type": ["null", "boolean"]
+    },
     "updated": {
       "type": ["null", "string"],
       "format": "date-time"
