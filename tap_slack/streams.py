@@ -257,7 +257,7 @@ class ConversationHistoryStream(SlackStream):
                                     # If threads are being synced then the message data for the
                                     # message the threaded replies are in response to will be
                                     # synced to the messages table as well as the threads table
-                                    if threads_stream:
+                                    if threads_stream and data.get('thread_ts'):
                                         # If threads is selected we need to sync all the
                                         # threaded replies to this message
                                         threads_stream.write_schema()
@@ -274,9 +274,7 @@ class ConversationHistoryStream(SlackStream):
                                             schema=schema,
                                             metadata=metadata.to_map(mdata)
                                         )
-                                        record_timestamp = \
-                                            transformed_record.get('thread_ts', '').partition('.')[
-                                                0]
+                                        record_timestamp = data.get('ts', '').partition('.')[0]
                                         record_timestamp_int = int(record_timestamp)
                                         if record_timestamp_int >= start.timestamp():
                                             if self.write_to_singer:
