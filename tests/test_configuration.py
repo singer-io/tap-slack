@@ -5,7 +5,6 @@ def config():
         "type": "platform.slack",
         "properties": {
             "start_date": "TAP_SLACK_START_DATE",
-            "date_window_size": "TAP_SLACK_DATE_WINDOW_SIZE",
             "lookback_window": "TAP_SLACK_LOOKBACK_WINDOW",
             "join_public_channels": "TAP_SLACK_JOIN_PUBLIC_CHANNELS",
             "private_channels": "TAP_SLACK_PRIVATE_CHANNELS",
