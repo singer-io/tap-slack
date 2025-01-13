@@ -38,7 +38,9 @@ class TestSyncNonReportStreams(unittest.TestCase):
 
     def get_properties(self):
         """Configuration properties required for the tap."""
-        properties_dict = {}
+        properties_dict = {
+            "date_window_size": "60"
+        }
         props = configuration['properties']
         for prop in props:
             properties_dict[prop] = os.getenv(props[prop])

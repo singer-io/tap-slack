@@ -2,15 +2,12 @@ version: 2
 jobs:
   build:
     docker:
-      - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:tap-tester-v4
+      - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:stitch-tap-tester
     steps:
       - checkout
       - run:
           name: 'Setup virtual env'
           command: |
-            pyenv global 3.6.9
-            pyenv rehash
-            pip install awscli
             python3 -mvenv /usr/local/share/virtualenvs/tap-slack
             source /usr/local/share/virtualenvs/tap-slack/bin/activate
             pip install -U 'pip<19.2' setuptools
@@ -19,16 +16,11 @@ jobs:
       - run:
           name: 'Integration Tests'
           command: |
-            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/sandbox dev_env.sh
+            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/tap_tester_sandbox dev_env.sh
             source dev_env.sh
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
-            run-test --tap=tap-slack \
-                       --target=target-stitch \
-                       --orchestrator=stitch-orchestrator \
-                       --email=harrison+sandboxtest@stitchdata.com \
-                       --password=$SANDBOX_PASSWORD \
-                       --client-id=50 \
-                       tests
+            run-test --tap=tap-slack tests
+
 workflows:
   version: 2
   commit:
