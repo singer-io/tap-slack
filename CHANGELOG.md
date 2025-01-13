@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.2
+  * Remove unused Pipfile.lock since it is no longer needed. [#22](https://github.com/singer-io/tap-slack/pull/22)
+
 ## 1.1.1
   * Fix a logic error [#10](https://github.com/singer-io/tap-slack/pull/10)
 
