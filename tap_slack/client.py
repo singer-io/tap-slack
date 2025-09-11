@@ -6,7 +6,7 @@ import time
 
 import backoff
 import singer
-from slack.errors import SlackApiError
+from slack_sdk.errors import SlackApiError
 
 LOGGER = singer.get_logger()
 
@@ -17,7 +17,8 @@ class SlackClient(object):
         self.webclient = webclient
         self.config = config
 
-    def wait(err=None):
+    @staticmethod
+    def wait(err=None):  # Added @staticmethod decorator to fix usage in backoff.giveup
         if isinstance(err, SlackApiError):
             if err.response.data.get("error", "") == "ratelimited":
                 delay = int(err.response.headers.get("Retry-After", "0"))
@@ -87,9 +88,7 @@ class SlackClient(object):
                 # messages will throw an error
                 LOGGER.warning(
                     'Attempted to get messages for channel: {} that '
-                    'slackbot is not in'.format(
-                        channel
-                    ))
+                    'slackbot is not in'.format(channel))
                 messages = None
             else:
                 raise err
