@@ -1,7 +1,7 @@
 import sys
 import json
 import singer
-from slack_sdk import WebClient  # Changed import to slack_sdk
+from slack_sdk import WebClient
 
 from tap_slack.client import SlackClient
 from tap_slack.streams import AVAILABLE_STREAMS

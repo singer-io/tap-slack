@@ -18,7 +18,7 @@ class SlackClient(object):
         self.config = config
 
     @staticmethod
-    def wait(err=None):  # Added @staticmethod decorator to fix usage in backoff.giveup
+    def wait(err=None):
         if isinstance(err, SlackApiError):
             if err.response.data.get("error", "") == "ratelimited":
                 delay = int(err.response.headers.get("Retry-After", "0"))
