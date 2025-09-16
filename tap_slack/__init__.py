@@ -18,8 +18,8 @@ def auto_join(client, config):
             join_response = client.join_channel(channel=conversation_id)
             if not join_response.get("ok", False):
                 error = join_response.get("error", "Unspecified Error")
-                LOGGER.error(f'Error joining {conversation_id}, Reason: {error}')
-                raise Exception(f'{conversation_id}: {error}')
+                LOGGER.error('Error joining {}, Reason: {}'.format(conversation_id, error))
+                raise Exception('{}: {}'.format(conversation_id, error))
     else:
         response = client.get_all_channels(types="public_channel", exclude_archived="true")
         conversations = response.get("channels", [])
@@ -30,8 +30,8 @@ def auto_join(client, config):
             join_response = client.join_channel(channel=conversation_id)
             if not join_response.get("ok", False):
                 error = join_response.get("error", "Unspecified Error")
-                LOGGER.error(f'Error joining {conversation_name}, Reason: {error}')
-                raise Exception(f'{conversation_name}: {error}')
+                LOGGER.error('Error joining {}, Reason: {}'.format(conversation_name, error))
+                raise Exception('{}: {}'.format(conversation_name, error))
 
 
 def discover(client):
@@ -71,7 +71,7 @@ def sync(client, config, catalog, state):
                 stream = AVAILABLE_STREAMS[catalog_entry.stream](client=client, config=config,
                                                                  catalog=catalog,
                                                                  state=state)
-            LOGGER.info(f'Syncing stream: {catalog_entry.stream}')
+            LOGGER.info('Syncing stream: %s', catalog_entry.stream)
             stream.write_schema()
             stream.sync(catalog_entry.metadata)
             stream.write_state()
