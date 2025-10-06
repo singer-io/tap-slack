@@ -10,7 +10,7 @@ setup(name='tap-slack',
       py_modules=['tap_slack'],
       install_requires=[
           'singer-python==6.1.1',
-          'slackclient==2.9.4',
+          'slackclient==3.36.0',
       ],
       extras_require={
           'dev': [
