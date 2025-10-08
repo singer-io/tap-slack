@@ -141,6 +141,7 @@ class ConversationMembersStream(SlackStream):
     forced_replication_method = 'FULL_TABLE'
     valid_replication_keys = []
     date_fields = []
+    parent = 'channels'
 
     def sync(self, mdata):
 
@@ -177,6 +178,7 @@ class ConversationHistoryStream(SlackStream):
     forced_replication_method = 'INCREMENTAL'
     valid_replication_keys = ['channel_id', 'ts']
     date_fields = ['ts']
+    parent = 'channels'
 
     # pylint: disable=arguments-differ
     def update_bookmarks(self, channel_id, value):
@@ -370,6 +372,7 @@ class ThreadsStream(SlackStream):
     replication_key = 'updated'
     valid_replication_keys = ['updated_at']
     date_fields = ['ts', 'last_read']
+    parent = 'channels'
 
     def sync(self, mdata, channel_id, ts):
         schema = self.load_schema()
