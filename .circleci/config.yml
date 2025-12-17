@@ -12,7 +12,6 @@ jobs:
             source /usr/local/share/virtualenvs/tap-slack/bin/activate
             uv pip install -U setuptools
             uv pip install .[dev]
-      - add_ssh_keys
       - run:
           name: 'Integration Tests'
           command: |
