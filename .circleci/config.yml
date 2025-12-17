@@ -13,6 +13,12 @@ jobs:
             uv pip install -U setuptools
             uv pip install .[dev]
       - run:
+          name: "pylint"
+          command: |
+            source /usr/local/share/virtualenvs/tap-slack/bin/activate
+            uv pip install pylint
+            pylint tap_slack -d C,R,W
+      - run:
           name: 'Integration Tests'
           command: |
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
