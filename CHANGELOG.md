@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0
+  * Update slack client to slack sdk and upgrade singer-python version. https://github.com/singer-io/tap-slack/pull/24
+
+
 ## 1.1.2
   * Remove unused Pipfile.lock since it is no longer needed. [#22](https://github.com/singer-io/tap-slack/pull/22)
 

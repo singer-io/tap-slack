@@ -6,7 +6,7 @@ import time
 
 import backoff
 import singer
-from slack.errors import SlackApiError
+from slack_sdk.errors import SlackApiError
 
 LOGGER = singer.get_logger()
 
@@ -88,9 +88,7 @@ class SlackClient(object):
                 # messages will throw an error
                 LOGGER.warning(
                     'Attempted to get messages for channel: {} that '
-                    'slackbot is not in'.format(
-                        channel
-                    ))
+                    'slackbot is not in'.format(channel))
                 messages = None
             else:
                 raise err

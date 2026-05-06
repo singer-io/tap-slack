@@ -1,7 +1,7 @@
 import sys
 import json
 import singer
-from slack import WebClient
+from slack_sdk import WebClient
 
 from tap_slack.client import SlackClient
 from tap_slack.streams import AVAILABLE_STREAMS
@@ -11,7 +11,6 @@ LOGGER = singer.get_logger()
 
 
 def auto_join(client, config):
-
     if "channels" in config:
         conversations = config.get("channels")
 
