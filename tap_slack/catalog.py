@@ -19,7 +19,7 @@ def generate_catalog(streams):
         if parent_tap_stream_id:
             mdata = singer.metadata.write(mdata, (), 'parent-tap-stream-id', parent_tap_stream_id)
 
-        mdata = singer.metadata.to_list(mdata)        
+        mdata = singer.metadata.to_list(mdata)
         catalog_entry = {
             'stream': stream.name,
             'tap_stream_id': stream.name,

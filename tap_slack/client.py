@@ -17,7 +17,6 @@ class SlackClient(object):
         self.webclient = webclient
         self.config = config
 
-    @staticmethod
     def wait(err=None):
         if isinstance(err, SlackApiError):
             if err.response.data.get("error", "") == "ratelimited":
