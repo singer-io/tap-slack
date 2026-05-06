@@ -17,6 +17,7 @@ class SlackClient(object):
         self.webclient = webclient
         self.config = config
 
+    # pylint: disable=no-self-argument,raising-non-exception
     def wait(err=None):
         if isinstance(err, SlackApiError):
             if err.response.data.get("error", "") == "ratelimited":
