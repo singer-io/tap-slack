@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.1
+  * Exclude unauthorized streams (403) from catalog during discovery [#29](https://github.com/singer-io/tap-slack/pull/29)
+
 ## 1.2.0
   * Update slack client to slack sdk and upgrade singer-python version. https://github.com/singer-io/tap-slack/pull/24
 

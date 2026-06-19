@@ -17,6 +17,8 @@ utc = pytz.UTC
 
 class SlackStream:
 
+    name = None
+
     def __init__(self, client, config=None, catalog=None, state=None, write_to_singer=True):
         self.client = client
         self.config = config
