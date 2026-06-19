@@ -5,7 +5,9 @@ import pytz
 import singer
 from singer import metadata, utils
 from singer.utils import strptime_to_utc
+from slack_sdk.errors import SlackApiError
 
+from tap_slack.exceptions import SlackForbiddenError
 from tap_slack.transform import transform_json
 
 LOGGER = singer.get_logger()
@@ -25,6 +27,39 @@ class SlackStream:
             self.date_window_size = int(config.get('date_window_size', '7'))
         else:
             self.date_window_size = 7
+
+    # Slack API errors indicating insufficient permissions
+    FORBIDDEN_ERRORS = {"missing_scope", "not_allowed_token_type", "access_denied",
+                        "token_revoked", "account_inactive", "org_login_required"}
+
+    def check_access(self):
+        """
+        Verify that the API credentials have read access to this stream.
+        Returns True if accessible, False if a permission error is raised.
+        Child streams always return True (access is governed by the parent check).
+        """
+        if getattr(self, 'parent', None):
+            return True
+
+        try:
+            self._probe_access()
+            return True
+        except SlackForbiddenError as exc:
+            LOGGER.warning(
+                "Unauthorized Stream: %s, excluding from catalog. Error: '%s'",
+                self.name,
+                exc,
+            )
+            return False
+
+    def _probe_access(self):
+        """
+        Make a minimal API call to verify access to this stream.
+        Subclasses should override if the default is not suitable.
+        """
+        raise NotImplementedError(
+            f"Stream {self.name} must implement _probe_access() for access checking."
+        )
 
     @staticmethod
     def get_abs_path(path):
@@ -110,6 +145,14 @@ class ConversationsStream(SlackStream):
     forced_replication_method = 'FULL_TABLE'
     valid_replication_keys = []
     date_fields = ['created']
+
+    def _probe_access(self):
+        try:
+            self.client.webclient.conversations_list(limit=1)
+        except SlackApiError as err:
+            if err.response.data.get("error", "") in self.FORBIDDEN_ERRORS:
+                raise SlackForbiddenError(err.response.data.get("error", "")) from err
+            raise
 
     def sync(self, mdata):
         schema = self.load_schema()
@@ -323,6 +366,14 @@ class UsersStream(SlackStream):
     valid_replication_keys = ['updated_at']
     date_fields = ['updated']
 
+    def _probe_access(self):
+        try:
+            self.client.webclient.users_list(limit=1)
+        except SlackApiError as err:
+            if err.response.data.get("error", "") in self.FORBIDDEN_ERRORS:
+                raise SlackForbiddenError(err.response.data.get("error", "")) from err
+            raise
+
     def sync(self, mdata):
 
         schema = self.load_schema()
@@ -413,6 +464,14 @@ class UserGroupsStream(SlackStream):
     replication_method = 'FULL_TABLE'
     valid_replication_keys = []
 
+    def _probe_access(self):
+        try:
+            self.client.webclient.usergroups_list()
+        except SlackApiError as err:
+            if err.response.data.get("error", "") in self.FORBIDDEN_ERRORS:
+                raise SlackForbiddenError(err.response.data.get("error", "")) from err
+            raise
+
     def sync(self, mdata):
         schema = self.load_schema()
 
@@ -448,6 +507,14 @@ class TeamsStream(SlackStream):
     valid_replication_keys = ['updated_at']
     date_fields = []
 
+    def _probe_access(self):
+        try:
+            self.client.webclient.team_info()
+        except SlackApiError as err:
+            if err.response.data.get("error", "") in self.FORBIDDEN_ERRORS:
+                raise SlackForbiddenError(err.response.data.get("error", "")) from err
+            raise
+
     def sync(self, mdata):
         schema = self.load_schema()
 
@@ -481,6 +548,14 @@ class FilesStream(SlackStream):
     replication_key = 'updated'
     valid_replication_keys = ['updated_at']
     date_fields = []
+
+    def _probe_access(self):
+        try:
+            self.client.webclient.files_list(count=1)
+        except SlackApiError as err:
+            if err.response.data.get("error", "") in self.FORBIDDEN_ERRORS:
+                raise SlackForbiddenError(err.response.data.get("error", "")) from err
+            raise
 
     def sync(self, mdata):
         schema = self.load_schema()
@@ -559,6 +634,14 @@ class RemoteFilesStream(SlackStream):
     replication_key = 'updated'
     valid_replication_keys = ['updated_at']
     date_fields = []
+
+    def _probe_access(self):
+        try:
+            self.client.webclient.files_remote_list(limit=1)
+        except SlackApiError as err:
+            if err.response.data.get("error", "") in self.FORBIDDEN_ERRORS:
+                raise SlackForbiddenError(err.response.data.get("error", "")) from err
+            raise
 
     def sync(self, mdata):
         schema = self.load_schema()
