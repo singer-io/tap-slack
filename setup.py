@@ -9,14 +9,17 @@ setup(name='tap-slack',
       classifiers=['Programming Language :: Python :: 3 :: Only'],
       py_modules=['tap_slack'],
       install_requires=[
-          'singer-python==6.1.1',
+          'singer-python==6.8.0',
           'slack-sdk==3.36.0',
       ],
       extras_require={
           'dev': [
-              'pylint',
-              'ipdb',
-              'nose'
+            'pylint',
+            'ipdb',
+            'nose',
+            'pytest',
+            'pytest-cov',
+            'coverage',
           ]
       },
       entry_points='''
