@@ -23,7 +23,8 @@ jobs:
           command: |
             source /usr/local/share/virtualenvs/tap-slack/bin/activate
             mkdir -p test_output
-            pytest --cov=tap_slack --cov-report=term-missing --junitxml=test_output/unittests.xml tests/unittests
+            export PYTHONPATH="$PWD"
+            python -m pytest --cov=tap_slack --cov-report=term-missing --junitxml=test_output/unittests.xml tests/unittests
           when: always
       - store_test_results:
           path: test_output
