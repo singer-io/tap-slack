@@ -19,6 +19,17 @@ jobs:
             uv pip install pylint
             pylint tap_slack -d C,R,W
       - run:
+          name: 'Unit Tests'
+          command: |
+            source /usr/local/share/virtualenvs/tap-slack/bin/activate
+            mkdir -p test_output
+            pytest --cov=tap_slack --cov-report=term-missing --junitxml=test_output/unittests.xml tests/unittests
+          when: always
+      - store_test_results:
+          path: test_output
+      - store_artifacts:
+          path: htmlcov
+      - run:
           name: 'Integration Tests'
           command: |
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
