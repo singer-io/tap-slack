@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -47,6 +48,37 @@ class DummyTransformer:
         return data
 
 
+class FakeMoment:
+    def __init__(self, gt_result=False, lt_result=False):
+        self.gt_result = gt_result
+        self.lt_result = lt_result
+
+    def replace(self, **kwargs):
+        return self
+
+    def __gt__(self, other):
+        return self.gt_result
+
+    def __lt__(self, other):
+        return self.lt_result
+
+    def strftime(self, fmt):
+        return "2025-01-01T00:00:00"
+
+
+def make_fake_datetime_module(moment_map):
+    def fake_utcfromtimestamp(timestamp):
+        return moment_map[timestamp]["utc"]
+
+    def fake_fromtimestamp(timestamp):
+        return moment_map[timestamp]["from"]
+
+    return SimpleNamespace(
+        utcfromtimestamp=fake_utcfromtimestamp,
+        fromtimestamp=fake_fromtimestamp,
+    )
+
+
 def make_slack_error(code):
     response = MagicMock()
     response.data = {"ok": False, "error": code}
@@ -90,6 +122,20 @@ def test_all_channels_defaults_to_public_and_not_archived_filter():
     client.get_all_channels.assert_called_once_with(
         types="public_channel", exclude_archived="false"
     )
+
+
+def test_get_absolute_date_range_uses_config_start_when_outside_lookback():
+    client = MagicMock()
+    stream = ConversationsStream(
+        client=client,
+        config={"lookback_window": "14"},
+        state={},
+    )
+
+    start, end = stream.get_absolute_date_range("2025-01-01T00:00:00Z")
+
+    assert start < end
+    assert start.year == 2025
 
 
 @pytest.mark.parametrize(
@@ -171,6 +217,124 @@ def test_messages_sync_with_threads_selected_calls_thread_stream_methods():
     end = datetime(2025, 1, 2, tzinfo=timezone.utc)
 
     with patch("tap_slack.streams.ThreadsStream", DummyThreadsStream), patch(
+        "tap_slack.streams.singer.metrics.job_timer", side_effect=dummy_job_timer
+    ), patch(
+        "tap_slack.streams.singer.metrics.record_counter", side_effect=lambda **_: DummyCounter()
+    ), patch(
+        "tap_slack.streams.singer.Transformer", DummyTransformer
+    ), patch(
+        "tap_slack.streams.metadata.to_map", side_effect=lambda m: m
+    ), patch(
+        "tap_slack.streams.singer.write_record"
+    ), patch(
+        "tap_slack.streams.singer.utils.now", return_value=datetime(2025, 1, 2, tzinfo=timezone.utc)
+    ), patch.object(
+        stream, "get_absolute_date_range", return_value=(start, end)
+    ):
+        stream.sync(mdata=[])
+
+
+def test_messages_sync_covers_bookmark_comparison_branches():
+    class DummyEntry:
+        def __init__(self, stream):
+            self.stream = stream
+            self.metadata = []
+
+    class DummyCatalog:
+        def get_selected_streams(self, state):
+            return [DummyEntry("messages")]
+
+    client = MagicMock()
+    stream = ConversationHistoryStream(
+        client=client,
+        config={"start_date": "2025-01-01T00:00:00Z", "date_window_size": "1"},
+        catalog=DummyCatalog(),
+        state={"bookmarks": {}},
+    )
+    stream.load_schema = MagicMock(return_value={"type": "object"})
+
+    client.get_all_channels.return_value = [{"channels": [{"id": "C1"}]}]
+    client.get_messages.return_value = [
+        {
+            "messages": [
+                {"ts": "1735689700.100", "thread_ts": "1735689700.100", "text": "newer"},
+                {"ts": "1735689600.100", "thread_ts": "1735689600.100", "text": "older"},
+            ]
+        }
+    ]
+
+    start = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    end = datetime(2025, 1, 2, tzinfo=timezone.utc)
+    moment_map = {
+        1735689700: {"utc": FakeMoment(gt_result=True, lt_result=False), "from": FakeMoment(gt_result=True, lt_result=False)},
+        1735689600: {"utc": FakeMoment(gt_result=False, lt_result=True), "from": FakeMoment(gt_result=False, lt_result=True)},
+    }
+
+    with patch("tap_slack.streams.datetime", make_fake_datetime_module(moment_map)), patch(
+        "tap_slack.streams.singer.metrics.job_timer", side_effect=dummy_job_timer
+    ), patch(
+        "tap_slack.streams.singer.metrics.record_counter", side_effect=lambda **_: DummyCounter()
+    ), patch(
+        "tap_slack.streams.singer.Transformer", DummyTransformer
+    ), patch(
+        "tap_slack.streams.metadata.to_map", side_effect=lambda m: m
+    ), patch(
+        "tap_slack.streams.singer.write_record"
+    ), patch(
+        "tap_slack.streams.singer.utils.now", return_value=datetime(2025, 1, 2, tzinfo=timezone.utc)
+    ), patch.object(
+        stream, "get_absolute_date_range", return_value=(start, end)
+    ):
+        stream.sync(mdata=[])
+
+
+@pytest.mark.parametrize(
+    "stream_cls, client_attr, moment_map, start_field, end_field",
+    [
+        (
+            FilesStream,
+            "get_files",
+            {
+                1735689700: {"utc": FakeMoment(gt_result=True, lt_result=False), "from": FakeMoment(gt_result=True, lt_result=False)},
+                1735689600: {"utc": FakeMoment(gt_result=False, lt_result=True), "from": FakeMoment(gt_result=False, lt_result=True)},
+            },
+            "timestamp",
+            "files",
+        ),
+        (
+            RemoteFilesStream,
+            "get_remote_files",
+            {
+                1735689700: {"utc": FakeMoment(gt_result=True, lt_result=False), "from": FakeMoment(gt_result=True, lt_result=False)},
+                1735689600: {"utc": FakeMoment(gt_result=False, lt_result=True), "from": FakeMoment(gt_result=False, lt_result=True)},
+            },
+            "timestamp",
+            "files",
+        ),
+    ],
+)
+def test_files_and_remote_files_cover_min_bookmark_branch(stream_cls, client_attr, moment_map, start_field, end_field):
+    client = MagicMock()
+    stream = stream_cls(
+        client=client,
+        config={"start_date": "2025-01-01T00:00:00Z", "date_window_size": "1"},
+        state={"bookmarks": {}},
+    )
+    stream.load_schema = MagicMock(return_value={"type": "object"})
+
+    start = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    end = datetime(2025, 1, 2, tzinfo=timezone.utc)
+
+    getattr(client, client_attr).return_value = [
+        {
+            end_field: [
+                {"id": "A", start_field: 1735689700},
+                {"id": "B", start_field: 1735689600},
+            ]
+        }
+    ]
+
+    with patch("tap_slack.streams.datetime", make_fake_datetime_module(moment_map)), patch(
         "tap_slack.streams.singer.metrics.job_timer", side_effect=dummy_job_timer
     ), patch(
         "tap_slack.streams.singer.metrics.record_counter", side_effect=lambda **_: DummyCounter()
