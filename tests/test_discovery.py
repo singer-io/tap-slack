@@ -227,17 +227,42 @@ class TestApplyAccessChecks(unittest.TestCase):
         # Find the specific warning call about excluded streams
         exclusion_calls = [
             call for call in mock_logger.warning.call_args_list
-            if "excluded due to HTTP-Error-Code:403 Forbidden" in str(call)
+            if "Unauthorized streams excluded from catalog" in str(call)
         ]
         self.assertEqual(len(exclusion_calls), 1)
         warning_msg = exclusion_calls[0][0][0]
         excluded_names = exclusion_calls[0][0][1]
         self.assertEqual(
             warning_msg,
-            "These streams have been excluded due to HTTP-Error-Code:403 Forbidden: %s"
+            "Unauthorized streams excluded from catalog: %s"
         )
         self.assertIn("users", excluded_names)
         self.assertIn("user_groups", excluded_names)
+
+    @patch('tap_slack.LOGGER')
+    def test_parent_forbidden_warning_includes_pruned_children(self, mock_logger):
+        """When a parent stream is inaccessible, warning should include pruned child stream names."""
+        client = _mock_client()
+        client.webclient.conversations_list.side_effect = _make_slack_api_error("missing_scope")
+        client.webclient.users_list.return_value = {"ok": True}
+        client.webclient.usergroups_list.return_value = {"ok": True}
+        client.webclient.team_info.return_value = {"ok": True}
+        client.webclient.files_list.return_value = {"ok": True}
+        client.webclient.files_remote_list.return_value = {"ok": True}
+
+        streams = [stream_cls(client) for _, stream_cls in AVAILABLE_STREAMS.items()]
+        _apply_access_checks(client, streams)
+
+        exclusion_calls = [
+            call for call in mock_logger.warning.call_args_list
+            if "Unauthorized streams excluded from catalog" in str(call)
+        ]
+        self.assertEqual(len(exclusion_calls), 1)
+        excluded_names = exclusion_calls[0][0][1]
+        self.assertIn("channels", excluded_names)
+        self.assertIn("channel_members", excluded_names)
+        self.assertIn("messages", excluded_names)
+        self.assertIn("threads", excluded_names)
 
 
 class TestPruneInaccessibleChildren(unittest.TestCase):

@@ -52,6 +52,7 @@ def _prune_inaccessible_children(streams):
             to_remove.append(stream)
     for stream in to_remove:
         streams.remove(stream)
+    return to_remove
 
 
 def _apply_access_checks(client, streams):
@@ -66,7 +67,7 @@ def _apply_access_checks(client, streams):
             inaccessible_streams.append(stream)
             streams.remove(stream)
 
-    _prune_inaccessible_children(streams)
+    inaccessible_streams.extend(_prune_inaccessible_children(streams))
 
     if not streams:
         raise SlackForbiddenError(
@@ -74,7 +75,7 @@ def _apply_access_checks(client, streams):
         )
     elif inaccessible_streams:
         LOGGER.warning(
-            "These streams have been excluded due to HTTP-Error-Code:403 Forbidden: %s",
+            "Unauthorized streams excluded from catalog: %s",
             ", ".join(s.name for s in inaccessible_streams),
         )
 
