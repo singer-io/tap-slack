@@ -17,6 +17,13 @@ class SlackClient(object):
         self.webclient = webclient
         self.config = config
 
+    def __enter__(self):
+        self.webclient.auth_test()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
     # pylint: disable=no-self-argument,raising-non-exception
     def wait(err=None):
         if isinstance(err, SlackApiError):

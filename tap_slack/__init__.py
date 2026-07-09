@@ -130,14 +130,13 @@ def main():
     args = singer.utils.parse_args(required_config_keys=['token', 'start_date'])
 
     webclient = WebClient(token=args.config.get("token"))
-    client = SlackClient(webclient=webclient, config=args.config)
-
-    if args.discover:
-        discover(client=client)
-    elif args.catalog:
-        if args.config.get("join_public_channels", "false") == "true":
-            auto_join(client=client, config=args.config)
-        sync(client=client, config=args.config, catalog=args.catalog, state=args.state)
+    with SlackClient(webclient=webclient, config=args.config) as client:
+        if args.discover:
+            discover(client=client)
+        elif args.catalog:
+            if args.config.get("join_public_channels", "false") == "true":
+                auto_join(client=client, config=args.config)
+            sync(client=client, config=args.config, catalog=args.catalog, state=args.state)
 
 
 if __name__ == '__main__':

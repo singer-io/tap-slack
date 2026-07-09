@@ -82,3 +82,52 @@ def test_client_get_messages_error_paths():
     webclient.conversations_history.side_effect = make_slack_error("invalid_auth")
     with pytest.raises(SlackApiError):
         client.get_messages("C2", 1, 2)
+
+
+def test_client_enter_success():
+    webclient = MagicMock()
+    webclient.auth_test.return_value = {"ok": True, "team": "T1"}
+    client = SlackClient(webclient, config={"token": "xoxb-test"})
+
+    with client as entered:
+        assert entered is client
+    webclient.auth_test.assert_called_once_with()
+
+
+def test_client_enter_missing_token_still_calls_auth_test():
+    webclient = MagicMock()
+    client = SlackClient(webclient, config={})
+
+    with client as entered:
+        assert entered is client
+    webclient.auth_test.assert_called_once_with()
+
+
+def test_client_enter_invalid_token_payload_does_not_raise():
+    webclient = MagicMock()
+    webclient.auth_test.return_value = {"ok": False, "error": "invalid_auth"}
+    client = SlackClient(webclient, config={"token": "xoxb-test"})
+
+    with client as entered:
+        assert entered is client
+    webclient.auth_test.assert_called_once_with()
+
+
+def test_client_enter_timeout_error_propagates():
+    webclient = MagicMock()
+    client = SlackClient(webclient, config={"token": "xoxb-test"})
+
+    webclient.auth_test.side_effect = TimeoutError("timeout")
+    with pytest.raises(TimeoutError, match="timeout"):
+        with client:
+            pass
+
+
+def test_client_enter_slack_api_error_propagates():
+    webclient = MagicMock()
+    client = SlackClient(webclient, config={"token": "xoxb-test"})
+
+    webclient.auth_test.side_effect = make_slack_error("invalid_auth")
+    with pytest.raises(SlackApiError, match="invalid_auth"):
+        with client:
+            pass
