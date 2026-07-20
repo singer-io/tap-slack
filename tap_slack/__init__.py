@@ -4,6 +4,7 @@ import singer
 from slack_sdk import WebClient
 
 from tap_slack.client import SlackClient
+from tap_slack.exceptions import SlackForbiddenError
 from tap_slack.streams import AVAILABLE_STREAMS
 from tap_slack.catalog import generate_catalog
 
@@ -34,9 +35,55 @@ def auto_join(client, config):
                 raise Exception('{}: {}'.format(conversation_name, error))
 
 
+def _prune_inaccessible_children(streams):
+    """
+    Remove child streams whose parent stream was excluded.
+    Mutates the streams list in place.
+    """
+    accessible_names = {s.name for s in streams}
+    to_remove = []
+    for stream in streams:
+        parent = getattr(stream, 'parent', None)
+        if parent and parent not in accessible_names:
+            LOGGER.warning(
+                "Stream '%s' excluded from catalog because its parent stream '%s' is not accessible.",
+                stream.name, parent,
+            )
+            to_remove.append(stream)
+    for stream in to_remove:
+        streams.remove(stream)
+    return to_remove
+
+
+def _apply_access_checks(client, streams):
+    """
+    Probe each stream for read access and remove inaccessible streams
+    (and their children) from the list in place.
+    Raises SlackForbiddenError if no parent streams are accessible.
+    """
+    inaccessible_streams = []
+    for stream in list(streams):
+        if not stream.check_access():
+            inaccessible_streams.append(stream)
+            streams.remove(stream)
+
+    inaccessible_streams.extend(_prune_inaccessible_children(streams))
+
+    if not streams:
+        raise SlackForbiddenError(
+            "No streams are accessible. Ensure the credentials have read permission for at least one stream."
+        )
+    elif inaccessible_streams:
+        LOGGER.warning(
+            "Unauthorized streams excluded from catalog: %s",
+            ", ".join(s.name for s in inaccessible_streams),
+        )
+
+
 def discover(client):
     LOGGER.info('Starting Discovery..')
     streams = [stream_class(client) for _, stream_class in AVAILABLE_STREAMS.items()]
+    _apply_access_checks(client, streams)
     catalog = generate_catalog(streams)
     json.dump(catalog, sys.stdout, indent=2)
     LOGGER.info("Finished Discovery..")
@@ -83,14 +130,13 @@ def main():
     args = singer.utils.parse_args(required_config_keys=['token', 'start_date'])
 
     webclient = WebClient(token=args.config.get("token"))
-    client = SlackClient(webclient=webclient, config=args.config)
-
-    if args.discover:
-        discover(client=client)
-    elif args.catalog:
-        if args.config.get("join_public_channels", "false") == "true":
-            auto_join(client=client, config=args.config)
-        sync(client=client, config=args.config, catalog=args.catalog, state=args.state)
+    with SlackClient(webclient=webclient, config=args.config) as client:
+        if args.discover:
+            discover(client=client)
+        elif args.catalog:
+            if args.config.get("join_public_channels", "false") == "true":
+                auto_join(client=client, config=args.config)
+            sync(client=client, config=args.config, catalog=args.catalog, state=args.state)
 
 
 if __name__ == '__main__':

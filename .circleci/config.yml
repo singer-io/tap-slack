@@ -19,9 +19,22 @@ jobs:
             uv pip install pylint
             pylint tap_slack -d C,R,W
       - run:
+          name: 'Unit Tests'
+          command: |
+            source /usr/local/share/virtualenvs/tap-slack/bin/activate
+            mkdir -p test_output
+            export PYTHONPATH="$PWD"
+            python -m pytest --cov=tap_slack --cov-report=term-missing --junitxml=test_output/unittests.xml tests/unittests
+          when: always
+      - store_test_results:
+          path: test_output
+      - store_artifacts:
+          path: htmlcov
+      - run:
           name: 'Integration Tests'
           command: |
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
+            uv pip install .[dev]
             uv pip install --upgrade awscli
             aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/tap_tester_sandbox dev_env.sh
             source dev_env.sh
